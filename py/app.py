@@ -1,8 +1,8 @@
 import pygame
 from model import Map2D, SoundSource, Listener, Obstacle
-from acoustics import dist, gain_distance, obstacle_attenuation, pan_lr, smooth, smooth_channels
-from audio import init_audio, start_sources, set_channel_lr
 from render import init_window, draw
+from audio import NoiseSource,DualOscSource, WavSampler, load_wav_mono
+from mixer import mix_and_play
 
 import time
 
@@ -10,6 +10,9 @@ amplitude_state = {} # id(src) -> {'l':0.0, 'r':0.0}
 
 def main():
     size = 600
+
+    samplePath = "./resc/sample-9s.wav"
+    data, sr = load_wav_mono(samplePath)
 
     # pre-config
     scene = Map2D(size=size, obstacles=[
@@ -19,12 +22,17 @@ def main():
         Obstacle((50, 200), (320, 450), absorb=0.25)
     ])
     sources = [
-        SoundSource(pos=(120, 120), freq=220.0),
-        SoundSource(pos=(500, 260), freq=330.0),
-        SoundSource(pos=(400, 520), freq=440.0),
+        SoundSource(pos=(120, 120), generator=(NoiseSource(0.2, 2137))),
+        SoundSource(pos=(500, 260), generator=(DualOscSource(220, gain=.7))),
+        SoundSource(pos=(400, 520), generator=(WavSampler(
+            path=samplePath, loop=True
+        )))
 
-        SoundSource(pos=(220, 130), freq=480.0),
-        SoundSource(pos=(130, 550), freq=100.0)
+        # SoundSource(pos=(120, 120), freq=220.0),
+        # SoundSource(pos=(500, 260), freq=330.0),
+        # SoundSource(pos=(400, 520), freq=440.0),
+        # SoundSource(pos=(220, 130), freq=480.0),
+        # SoundSource(pos=(130, 550), freq=100.0)
     ]
     listener = Listener(pos=(300, 300))
 
@@ -33,8 +41,10 @@ def main():
     # font = pygame.font.SysFont("consolas", 16)
     last_t = time.perf_counter()
     screen = init_window(size_px=800)
-    init_audio()
-    channels = start_sources(sources)
+
+    stream = mix_and_play(sources, listener, scene, 
+                          sr=44100, blocksize=512, tau_s=0.08, 
+                          amplitude_state = amplitude_state)
 
     clock = pygame.time.Clock()
     running = True
@@ -48,28 +58,6 @@ def main():
         now = time.perf_counter()
         dt = now - last_t
         last_t = now
-        tau = 0.08  # 20 ms
-        alpha = 1.0 - pow(2.718281828, -dt / tau)
-
-        # audio update
-        for (src, ch) in channels:
-            r = dist(src.pos, listener.pos)
-            gd = gain_distance(r, src.r0, src.rmax)
-            obs = obstacle_attenuation(src.pos, listener.pos, scene.obstacles)
-            g = src.base_gain * gd * obs
-            L, R = pan_lr(src.pos, listener.pos, R=scene.size/2)
-
-            # target_L = L * g
-            # target_R = R * g
-            target_LR = (L * g, R * g)
-
-            s = amplitude_state.setdefault(id(src), {'l': 0.0, 'r': 0.0})
-            # s['l'] = smooth(s['l'], target_L, alpha)
-            # s['r'] = smooth(s['r'], target_R, alpha)
-            s = smooth_channels(s, target_LR, alpha=alpha)
-
-            # set_channel_lr(ch, L, R, g)
-            set_channel_lr(ch, s['l'], s['r'], gain=1.0)
 
         draw(scene, sources, listener, screen, size_px=800)
         
@@ -77,6 +65,8 @@ def main():
         clock.tick(60)
 
 
+    stream.stop()
+    stream.close()
     pygame.quit()
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Tuple
+from audio import SoundSourceBase
 
 Vec2 = Tuple[float, float]
 
@@ -12,10 +13,11 @@ class Obstacle:
 @dataclass
 class SoundSource:
     pos: Vec2
-    freq: float
-    base_gain: float = 1.0
-    r0: float = 50.0
-    rmax: float = 400.0
+    # freq: float
+    # base_gain: float = 1.0
+    # r0: float = 50.0
+    # rmax: float = 400.0
+    generator: SoundSourceBase
 
 @dataclass
 class Listener:
