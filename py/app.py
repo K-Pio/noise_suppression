@@ -1,11 +1,17 @@
 import pygame
 from model import Map2D, SoundSource, Listener, Obstacle
-from acoustics import dist, gain_distance, obstacle_attenuation, pan_lr
+from acoustics import dist, gain_distance, obstacle_attenuation, pan_lr, smooth, smooth_channels
 from audio import init_audio, start_sources, set_channel_lr
 from render import init_window, draw
 
+import time
+
+amplitude_state = {} # id(src) -> {'l':0.0, 'r':0.0}
+
 def main():
     size = 600
+
+    # pre-config
     scene = Map2D(size=size, obstacles=[
         Obstacle((150, 100), (450, 100), absorb=0.35),
         Obstacle((300, 100), (300, 500), absorb=0.55),
@@ -24,7 +30,8 @@ def main():
 
     pygame.init()
 
-    font = pygame.font.SysFont("consolas", 16)
+    # font = pygame.font.SysFont("consolas", 16)
+    last_t = time.perf_counter()
     screen = init_window(size_px=800)
     init_audio()
     channels = start_sources(sources)
@@ -38,6 +45,12 @@ def main():
                 mx,my = ev.pos
                 listener.pos = (mx*size/800, my*size/800)
 
+        now = time.perf_counter()
+        dt = now - last_t
+        last_t = now
+        tau = 0.08  # 20 ms
+        alpha = 1.0 - pow(2.718281828, -dt / tau)
+
         # audio update
         for (src, ch) in channels:
             r = dist(src.pos, listener.pos)
@@ -45,29 +58,20 @@ def main():
             obs = obstacle_attenuation(src.pos, listener.pos, scene.obstacles)
             g = src.base_gain * gd * obs
             L, R = pan_lr(src.pos, listener.pos, R=scene.size/2)
-            set_channel_lr(ch, L, R, g)
+
+            # target_L = L * g
+            # target_R = R * g
+            target_LR = (L * g, R * g)
+
+            s = amplitude_state.setdefault(id(src), {'l': 0.0, 'r': 0.0})
+            # s['l'] = smooth(s['l'], target_L, alpha)
+            # s['r'] = smooth(s['r'], target_R, alpha)
+            s = smooth_channels(s, target_LR, alpha=alpha)
+
+            # set_channel_lr(ch, L, R, g)
+            set_channel_lr(ch, s['l'], s['r'], gain=1.0)
 
         draw(scene, sources, listener, screen, size_px=800)
-        
-
-        # debugging scheme
-        # params for first source (src0):
-        # src0 = sources[0]
-        # r0 = dist(src0.pos, listener.pos)
-        # gd0 = gain_distance(r0, src0.r0, src0.rmax)
-        # obs0 = obstacle_attenuation(src0.pos, listener.pos, scene.obstacles)
-        # g0 = src0.base_gain * gd0 * obs0
-        # L0, R0 = pan_lr(src0.pos, listener.pos, R=scene.size/2)
-
-        # overlay = [
-        #     f"src0 r={r0:6.1f} gd={gd0:0.3f} obs={obs0:0.3f} g={g0:0.3f}",
-        #     f"L={L0:0.3f} R={R0:0.3f}"
-        # ]
-        # y = 8
-        # for line in overlay:
-        #     surf = font.render(line, True, (230,230,230))
-        #     screen.blit(surf, (8, y))
-        #     y += 18
         
         pygame.display.flip()
         clock.tick(60)
