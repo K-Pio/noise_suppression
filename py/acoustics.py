@@ -13,7 +13,7 @@ def intersects(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> bool:
     def orient(p, q, r):
         return (q[0]-p[0])*(r[1]-p[1]) - (q[1]-p[1])*(r[0]-p[0])
     o1 = orient(a,b,c); o2 = orient(a,b,d); o3 = orient(c,d,a); o4 = orient(c,d,b)
-    if o1==0 and o2==0 and o3==0 and o4==0:
+    if o1==0 and o2==0 and o3==0 and o4==0:  # współliniowe uproszczenie
         return False
     return (o1*o2 <= 0) and (o3*o4 <= 0)
 
@@ -30,12 +30,3 @@ def pan_lr(src: Vec2, lst: Vec2, R: float) -> tuple[float,float]:
     L = math.cos(math.pi/2 * p)
     Rv = math.sin(math.pi/2 * p)
     return L, Rv
-
-def smooth(prev, target, alpha):
-    return prev + alpha * (target - prev)
-
-def smooth_channels(channels, targets: tuple, alpha):
-    target_L, target_R = targets
-    channels['l'] = smooth(channels['l'], target_L, alpha)
-    channels['r'] = smooth(channels['r'], target_R, alpha)
-    return channels
