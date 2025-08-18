@@ -1,7 +1,8 @@
 import numpy as np
 import sounddevice as sd
-from acoustics import dist, gain_distance, obstacle_attenuation, pan_lr
-from acoustics import smooth_channels
+# from acoustics import dist, gain_distance, obstacle_attenuation, pan_lr
+from acoustics_c import gain_distance, pan_lr, smooth_channels, dist
+from acoustics import obstacle_attenuation
 import math
 
 def mix_and_play(sources, listener, scene, sr=44100, blocksize=512, tau_s=0.02, amplitude_state={}):
@@ -30,7 +31,9 @@ def mix_and_play(sources, listener, scene, sr=44100, blocksize=512, tau_s=0.02, 
             obs = obstacle_attenuation(s.pos, (lx, ly), scene.obstacles)
             g_total = getattr(s, "base_gain", 1.0) * gd * obs
 
-            L, R = pan_lr(s.pos, (lx, ly), R=scene.size/2)
+            # L, R = pan_lr(s.pos, (lx, ly), R=scene.size/2)
+            L, R = pan_lr(s.pos[0], lx, R=scene.size/2)
+            
 
             target_LR = (L * g_total, R * g_total)
 
